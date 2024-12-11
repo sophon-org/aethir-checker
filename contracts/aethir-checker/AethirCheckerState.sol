@@ -24,6 +24,7 @@ contract AethirCheckerState {
     /// @notice Mapping to track nonces for each address, used to prevent replay attacks in signed messages
     mapping (address => uint256) public nonces;
 
-    /// @notice Mapping to track counts of container hashes received
-    mapping (bytes32 => uint256) public hashCounts;
+    /// @notice Mapping to temporarily track counts of container hashes received
+    /// @dev TODO: make this internal
+    mapping (bytes32 => uint256) public _hashCounts;
 }

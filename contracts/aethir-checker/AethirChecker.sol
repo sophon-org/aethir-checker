@@ -157,7 +157,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 reportStatus[j] = true;
 
                 // clear state for hash if remaining from a earlier txn
-                hashCounts[report.containerHash] = 0;
+                _hashCounts[report.containerHash] = 0;
             }
 
             uint256 majorityCount = uint256(validCount) / 2 + 1;
@@ -170,12 +170,12 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 for (uint256 j; j < reports[i].length; j++) {
                     if (!reportStatus[j]) continue;
                     thisHash = reports[i][j].containerHash;
-                    hashCount = hashCounts[thisHash] + 1;
+                    hashCount = _hashCounts[thisHash] + 1;
                     if (hashCount > majorityHashCount) {
                         majorityHash = thisHash;
                         majorityHashCount = hashCount;
                     }
-                    hashCounts[thisHash] = hashCount;
+                    _hashCounts[thisHash] = hashCount;
                 }
             }
 
