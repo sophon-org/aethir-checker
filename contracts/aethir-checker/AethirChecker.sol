@@ -6,10 +6,11 @@ import "../common/proxies/UpgradeableAccessControl.sol";
 import "./AethirCheckerState.sol";
 import "../common/Rescuable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuable {
+    using Checkpoints for Checkpoints.Trace208;
 
-    event BatchPassed();
     event BatchFailed(string error);
     event Logger(uint256 uint256val1, uint256 uint256val2, bytes32 bytes32Val1, address addr1, string str1, string str2);
 
@@ -22,8 +23,16 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         int256 reportTime,
         string containerId,
         uint8 jobType,
-        bytes signatureData,
-        bytes32 containerHash
+        bytes containerData
+    );
+
+    event BatchPassed(
+        int64 epoch,
+        int256 period,
+        int256 reportTime,
+        string containerId,
+        uint8 jobType,
+        bytes containerData
     );
 
     /// @notice Thrown when the counts of receivers and amounts do not match
@@ -54,12 +63,10 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     error ClientIdIsZero();
     error ClientExists(address client, string clientId);
     error ClientDoesNotExist();
+    error InvalidRange(uint256 startTime, uint256 endTime);
 
     /// @notice Role constant for report submitter
     bytes32 public constant REPORT_ADMIN_ROLE = keccak256("REPORT_ADMIN_ROLE");
-
-    /// @notice EIP-712 Domain Separator
-    bytes32 public immutable DOMAIN_SEPARATOR;
 
     /// @notice The EIP-712 typehash for the report admin struct used in signature validation
     bytes32 public constant REPORT_ADMIN_TYPEHASH = keccak256("AethirReportAdmin(address signer,uint256 nonce,uint256 deadline)");
@@ -67,7 +74,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     /// @notice The EIP-712 typehash for the report client struct used in signature validation
     bytes32 public constant REPORT_CLIENT_TYPEHASH = keccak256("AethirReportClient(address signer,string clientId,uint256 deadline)");
 
-    constructor() {
+    function initialize() external onlyRole(DEFAULT_ADMIN_ROLE) {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -110,22 +117,9 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             }
 
             uint256 validCount;
-            bool[] memory reportStatus = new bool[](reports[i].length);
+            bytes32[] memory containerHashes = new bytes32[](reports[i].length);
             for (uint256 j; j < reports[i].length; j++) {
                 Report memory report = reports[i][j];
-
-                emit ReportReceived(
-                    report.jobId,
-                    report.clientId,
-                    report.licenseId,
-                    report.epoch,
-                    report.period,
-                    report.reportTime,
-                    report.containerId,
-                    report.jobType,
-                    report.signatureData,
-                    report.containerHash
-                );
 
                 if (bytes(report.jobId).length == 0 ||
                     bytes(report.clientId).length == 0 ||
@@ -135,8 +129,8 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                     report.reportTime == 0 ||
                     bytes(report.containerId).length == 0 ||
                     report.jobType == 0 ||
-                    report.signatureData.length == 0 ||
-                    report.containerHash == 0) {
+                    report.containerData.length == 0 ||
+                    report.signatureData.length == 0) {
                     
                     emit Logger(i, j, 0, address(0), "", "invalid report");
 
@@ -153,26 +147,29 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 emit Logger(i, j, 0, client, report.clientId, "checks passed");
 
                 // only consider reports that make it this far for additional processing
-                validCount++;
-                reportStatus[j] = true;
 
-                // clear state for hash if remaining from a earlier txn
-                _hashCounts[report.containerHash] = 0;
+                _addReport(report);
+   
+                validCount++;
+                containerHashes[j] = keccak256(report.containerData);
+
+                // clear state for hash if remaining from an earlier txn
+                _hashCounts[containerHashes[j]] = 0;
             }
 
             uint256 majorityCount = uint256(validCount) / 2 + 1;
+            uint256 majorityIdx;
             uint256 majorityHashCount;
-            bytes32 majorityHash;
 
             if (validCount != 0) {
                 bytes32 thisHash;
                 uint256 hashCount;
                 for (uint256 j; j < reports[i].length; j++) {
-                    if (!reportStatus[j]) continue;
-                    thisHash = reports[i][j].containerHash;
+                    if (containerHashes[j] == 0) continue;
+                    thisHash = containerHashes[j];
                     hashCount = _hashCounts[thisHash] + 1;
                     if (hashCount > majorityHashCount) {
-                        majorityHash = thisHash;
+                        majorityIdx = j;
                         majorityHashCount = hashCount;
                     }
                     _hashCounts[thisHash] = hashCount;
@@ -180,7 +177,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             }
 
             if (majorityHashCount >= majorityCount) {
-                emit BatchPassed();
+                _addBatch(reports[i][majorityIdx]);
             } else {
                 emit BatchFailed("majority rule");
             }
@@ -272,6 +269,209 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         }
 
         return signerAddress;
+    }
+
+    function totalReportsInRange(uint256 startTime, uint256 endTime) external view returns (uint256 total) {
+        if (startTime > endTime) {
+            revert InvalidRange(startTime, endTime);
+        }
+        if (startTime > block.timestamp) {
+            startTime = block.timestamp;
+            endTime = block.timestamp;
+        } else if (endTime > block.timestamp) {
+            endTime = block.timestamp;
+        }
+
+        uint256 lowerBound = storedReportCheckpoint_.lowerLookup(SafeCast.toUint48(startTime));
+        if (lowerBound == 0) {
+            // none found
+            return 0;
+        }
+        uint256 upperBound = storedReportCheckpoint_.upperLookupRecent(SafeCast.toUint48(endTime));
+
+        for (uint256 repIdx = lowerBound - 1; repIdx < upperBound; repIdx++) {
+            total += storedReports[repIdx].length;
+        }
+    }
+
+    function getReportsInRange(uint256 startTime, uint256 endTime) external view returns (Report[] memory reports) {
+        if (startTime > endTime) {
+            revert InvalidRange(startTime, endTime);
+        }
+        if (startTime > block.timestamp) {
+            startTime = block.timestamp;
+            endTime = block.timestamp;
+        } else if (endTime > block.timestamp) {
+            endTime = block.timestamp;
+        }
+
+        uint256 lowerBound = storedReportCheckpoint_.lowerLookup(SafeCast.toUint48(startTime));
+        if (lowerBound == 0) {
+            // none found
+            return reports;
+        }
+        uint256 upperBound = storedReportCheckpoint_.upperLookupRecent(SafeCast.toUint48(endTime));
+        if (upperBound < lowerBound) {
+            // none found
+            return reports;
+        }
+
+        // allocate memory for the reports array
+        assembly {
+            let size := mul(add(not(0), 1), 0x20)
+            reports := mload(0x40)
+            mstore(0x40, add(reports, size))
+        }
+
+        uint256 i;
+        uint256 len;
+        uint256 idx;
+        for (uint256 repIdx = lowerBound - 1; repIdx < upperBound; repIdx++) {
+            Report[] memory repArr = storedReports[repIdx];
+            len = repArr.length;
+            for (i = 0; i < len; i++) {
+                reports[idx] = repArr[i];
+                idx++;
+            }
+        }
+    }
+
+    function totalBatchesInRange(uint256 startTime, uint256 endTime) external view returns (uint256 total) {
+        if (startTime > endTime) {
+            revert InvalidRange(startTime, endTime);
+        }
+        if (startTime > block.timestamp) {
+            startTime = block.timestamp;
+            endTime = block.timestamp;
+        } else if (endTime > block.timestamp) {
+            endTime = block.timestamp;
+        }
+
+        uint256 lowerBound = storedBatchCheckpoint_.lowerLookup(SafeCast.toUint48(startTime));
+        if (lowerBound == 0) {
+            // none found
+            return 0;
+        }
+        uint256 upperBound = storedBatchCheckpoint_.upperLookupRecent(SafeCast.toUint48(endTime));
+
+        for (uint256 repIdx = lowerBound - 1; repIdx < upperBound; repIdx++) {
+            total += storedBatches[repIdx].length;
+        }
+    }
+
+    function getBatchesInRange(uint256 startTime, uint256 endTime) external view returns (Batch[] memory batches) {
+        if (startTime > endTime) {
+            revert InvalidRange(startTime, endTime);
+        }
+        if (startTime > block.timestamp) {
+            startTime = block.timestamp;
+            endTime = block.timestamp;
+        } else if (endTime > block.timestamp) {
+            endTime = block.timestamp;
+        }
+
+        uint256 lowerBound = storedBatchCheckpoint_.lowerLookup(SafeCast.toUint48(startTime));
+        if (lowerBound == 0) {
+            // none found
+            return batches;
+        }
+        uint256 upperBound = storedBatchCheckpoint_.upperLookupRecent(SafeCast.toUint48(endTime));
+        if (upperBound < lowerBound) {
+            // none found
+            return batches;
+        }
+
+        // allocate memory for the batches array
+        assembly {
+            let size := mul(add(not(0), 1), 0x20)
+            batches := mload(0x40)
+            mstore(0x40, add(batches, size))
+        }
+
+        uint256 i;
+        uint256 len;
+        uint256 idx;
+        for (uint256 repIdx = lowerBound - 1; repIdx < upperBound; repIdx++) {
+            Batch[] memory repArr = storedBatches[repIdx];
+            len = repArr.length;
+            for (i = 0; i < len; i++) {
+                batches[idx] = repArr[i];
+                idx++;
+            }
+        }
+    }
+
+    /*function at(uint32 pos) external view returns (Checkpoints.Checkpoint208 memory) {
+        return storedReportCheckpoint_.at(pos);
+    }*/
+
+    function _addReport(Report memory report) internal {
+
+        (,uint256 timestamp, uint256 pos) = storedReportCheckpoint_.latestCheckpoint();
+        Report[] storage _ref;
+        if (block.timestamp != timestamp) {
+            // create new checkpoint
+            storedReports.push().push(report);
+            _push(storedReportCheckpoint_, SafeCast.toUint208(storedReports.length));
+        } else {
+            // checking already exists
+            storedReports[pos-1].push(report);
+        }
+
+        totalReports++;
+
+        emit ReportReceived(
+            report.jobId,
+            report.clientId,
+            report.licenseId,
+            report.epoch,
+            report.period,
+            report.reportTime,
+            report.containerId,
+            report.jobType,
+            report.containerData
+        );
+    }
+
+    function _addBatch(Report memory report) internal {
+
+        Batch memory batch = Batch({
+            epoch: report.epoch,
+            period: report.period,
+            reportTime: report.reportTime,
+            containerId: report.containerId,
+            jobType: report.jobType,
+            containerData: report.containerData
+        });
+
+        (,uint256 timestamp, uint256 pos) = storedBatchCheckpoint_.latestCheckpoint();
+        Batch[] storage _ref;
+        if (block.timestamp != timestamp) {
+            // create new checkpoint
+            storedBatches.push().push(batch);
+            _push(storedBatchCheckpoint_, SafeCast.toUint208(storedBatches.length));
+        } else {
+            // checking already exists
+            storedBatches[pos-1].push(batch);
+        }
+
+        totalBatches++;
+
+        emit BatchPassed(
+            batch.epoch,
+            batch.period,
+            batch.reportTime,
+            batch.containerId,
+            batch.jobType,
+            batch.containerData
+        );
+    }
+
+    function _push(Checkpoints.Trace208 storage store, uint208 val) internal {
+        store.push(
+            SafeCast.toUint48(block.timestamp),
+            SafeCast.toUint208(val)
+        );
     }
 
     function _requireRescuerRole() onlyRole(DEFAULT_ADMIN_ROLE) internal view override {
