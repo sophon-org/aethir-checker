@@ -23,6 +23,8 @@ contract AethirCheckerState {
     }
 
     struct Batch {
+        string jobId;           // jobId (string)
+        string[] licenseIds;    // jobIds (string[])
         int64 epoch;            // epoch (int64)
         int256 period;          // period  (int)
         int256 reportTime;      // reportTime (int)

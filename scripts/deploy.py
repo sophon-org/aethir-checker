@@ -135,15 +135,15 @@ def setup_test_data(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None
 
     if REPEAT is False:
         if DIRECT_PAY:
-            aethirChecker.registerClient("7ba0f58f7393f9ff64592dfe1449c826cf474be0", {"from": soph_test_1})
-            aethirChecker.registerClient("a97003be58e5fa268329b07275f9ff7fa2def95f", {"from": soph_test_2})
-            aethirChecker.registerClient("e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", {"from": soph_test_3})
-            aethirChecker.registerClient("b9078b727ffdc5e6f0d31d3a2787c66698e7db04", {"from": soph_test_4})
+            aethirChecker.registerClient(soph_test_1, "7ba0f58f7393f9ff64592dfe1449c826cf474be0", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_2, "a97003be58e5fa268329b07275f9ff7fa2def95f", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_3, "e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_4, "b9078b727ffdc5e6f0d31d3a2787c66698e7db04", b'', {"from": soph_test_0})
         else:
-            aethirChecker.registerClient("7ba0f58f7393f9ff64592dfe1449c826cf474be0", {"from": soph_test_1, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
-            aethirChecker.registerClient("a97003be58e5fa268329b07275f9ff7fa2def95f", {"from": soph_test_2, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
-            aethirChecker.registerClient("e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", {"from": soph_test_3, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
-            aethirChecker.registerClient("b9078b727ffdc5e6f0d31d3a2787c66698e7db04", {"from": soph_test_4, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_1, "7ba0f58f7393f9ff64592dfe1449c826cf474be0", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_2, "a97003be58e5fa268329b07275f9ff7fa2def95f", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_3, "e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_4, "b9078b727ffdc5e6f0d31d3a2787c66698e7db04", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
 
     raw_data = [
         [

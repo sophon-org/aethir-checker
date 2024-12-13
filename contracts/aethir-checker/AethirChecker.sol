@@ -11,7 +11,9 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuable {
     using Checkpoints for Checkpoints.Trace208;
 
-    event BatchFailed(string error);
+    event RegisterClient(address client, string clientId, address admin);
+    event DeregisterClient(address client, string clientId, address admin);
+
     event Logger(uint256 uint256val1, uint256 uint256val2, bytes32 bytes32Val1, address addr1, string str1, string str2);
 
     event ReportReceived(
@@ -27,12 +29,19 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     );
 
     event BatchPassed(
+        string jobId,
+        string[] licenseIds,
         int64 epoch,
         int256 period,
         int256 reportTime,
         string containerId,
         uint8 jobType,
         bytes containerData
+    );
+
+    event BatchFailed(
+        string[] licenseIds,
+        string error
     );
 
     /// @notice Thrown when the counts of receivers and amounts do not match
@@ -86,24 +95,31 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         );
     }
 
-    function registerClient(string memory clientId) external {
-        if (bytes(clientId).length == 0) revert ClientIdIsZero();
-        if (bytes(clientToId[msg.sender]).length != 0 || idToClient[clientId] != address(0)) revert ClientExists(idToClient[clientId], clientToId[msg.sender]);
+    function registerClient(address client, string memory clientId, bytes memory signatureData) external {
+        address admin = _authenticateReportAdmin(signatureData);
 
-        clientToId[msg.sender] = clientId;
-        idToClient[clientId] = msg.sender;
+        if (bytes(clientId).length == 0) revert ClientIdIsZero();
+        if (bytes(clientToId[client]).length != 0 || idToClient[clientId] != address(0)) revert ClientExists(idToClient[clientId], clientToId[client]);
+
+        clientToId[client] = clientId;
+        idToClient[clientId] = client;
+
+        emit RegisterClient(client, clientId, admin);
     }
 
-    function deregisterClient() external {
-        if (bytes(clientToId[msg.sender]).length == 0) revert ClientDoesNotExist();
+    function deregisterClient(address client, bytes memory signatureData) external {
+        address admin = _authenticateReportAdmin(signatureData);
 
-        string memory clientId = clientToId[msg.sender];
-        clientToId[msg.sender] = "";
+        if (bytes(clientToId[client]).length == 0) revert ClientDoesNotExist();
+
+        string memory clientId = clientToId[client];
+        clientToId[client] = "";
         idToClient[clientId] = address(0);
+
+        emit DeregisterClient(client, clientId, admin);
     }
 
     function submitReports(Report[][] memory reports, bytes memory signatureData) external {
-
         address admin = _authenticateReportAdmin(signatureData);
 
         if (reports.length == 0) {
@@ -111,18 +127,32 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         }
 
         for (uint256 i; i < reports.length; i++) {
-            if (reports[i].length == 0) {
-                emit BatchFailed("empty");
+
+            uint256 reportsLen = reports[i].length;
+
+            if (reportsLen == 0) {
+                emit BatchFailed(
+                    new string[](0),
+                    "empty"
+                );
                 continue;
             }
 
             uint256 validCount;
-            bytes32[] memory containerHashes = new bytes32[](reports[i].length);
-            for (uint256 j; j < reports[i].length; j++) {
+            bytes32[] memory containerHashes = new bytes32[](reportsLen);
+            string[] memory licenseIds = new string[](reportsLen);
+            for (uint256 j; j < reportsLen; j++) {
                 Report memory report = reports[i][j];
 
+                if (bytes(report.clientId).length != 0) {
+                    licenseIds[j] = report.clientId;
+                } else {
+                    emit Logger(i, j, 0, address(0), "", "invalid report (clientId)");
+
+                    continue;
+                }
+
                 if (bytes(report.jobId).length == 0 ||
-                    bytes(report.clientId).length == 0 ||
                     bytes(report.licenseId).length == 0 ||
                     report.epoch == 0 ||
                     report.period == 0 ||
@@ -137,10 +167,12 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                     continue;
                 }
 
-                address client = _authenticateReportClient(report.signatureData);
+                // TODO for later: address client = _authenticateReportClient(report.signatureData);
+                address client;
 
                 if (keccak256(abi.encodePacked(clientToId[client])) != keccak256(abi.encodePacked(report.clientId))) {
                     emit Logger(i, j, 0, client, report.clientId, "clientId mismatch");
+
                     continue;
                 }
 
@@ -164,7 +196,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             if (validCount != 0) {
                 bytes32 thisHash;
                 uint256 hashCount;
-                for (uint256 j; j < reports[i].length; j++) {
+                for (uint256 j; j < reportsLen; j++) {
                     if (containerHashes[j] == 0) continue;
                     thisHash = containerHashes[j];
                     hashCount = _hashCounts[thisHash] + 1;
@@ -177,9 +209,12 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             }
 
             if (majorityHashCount >= majorityCount) {
-                _addBatch(reports[i][majorityIdx]);
+                _addBatch(reports[i][majorityIdx], licenseIds);
             } else {
-                emit BatchFailed("majority rule");
+                emit BatchFailed(
+                    licenseIds,
+                    "majority rule"
+                );
             }
         }
     }
@@ -233,7 +268,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         return signerAddress;
     }
 
-    function _authenticateReportClient(bytes memory signatureData) internal returns (address) {
+    /*function _authenticateReportClient(bytes memory signatureData) internal returns (address) {
         address signerAddress;
 
         if (signatureData.length != 0) {
@@ -269,7 +304,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         }
 
         return signerAddress;
-    }
+    }*/
 
     function totalReportsInRange(uint256 startTime, uint256 endTime) external view returns (uint256 total) {
         if (startTime > endTime) {
@@ -431,9 +466,11 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         );
     }
 
-    function _addBatch(Report memory report) internal {
+    function _addBatch(Report memory report, string[] memory licenseIds) internal {
 
         Batch memory batch = Batch({
+            jobId: report.jobId,
+            licenseIds: licenseIds,
             epoch: report.epoch,
             period: report.period,
             reportTime: report.reportTime,
@@ -456,6 +493,8 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         totalBatches++;
 
         emit BatchPassed(
+            batch.jobId,
+            batch.licenseIds,
             batch.epoch,
             batch.period,
             batch.reportTime,
