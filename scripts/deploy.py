@@ -5,27 +5,43 @@ from web3 import Web3
 from eth_abi import encode
 from enum import IntEnum
 
+DIRECT_PAY = True
+DO_VERIFY = False
+
+DEPLOYER = accounts[0]
+#DEPLOYER = accounts.load("soph")
+
 '''from brownie.network import gas_price
 from brownie.network.gas.strategies import LinearScalingStrategy
 gas_strategy = LinearScalingStrategy("12 gwei", "60 gwei", 1.1)
 gas_price(gas_strategy) ## gas_price(20e9)'''
 
 
-def run_a_test(aethirChecker=None):
+def run_a_test(aethirChecker=None, REPEAT=False):
+    global DIRECT_PAY
 
     deployer = getDeployer()
-    soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts()
+    soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts(REPEAT)
+
+    if DIRECT_PAY:
+        params = {"from": deployer}
+    else:
+        params = {"from": deployer, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"}
 
     if aethirChecker is None:
         aethirChecker = deploy(deployer, soph_test_0)
 
-    submit_values, admin_sig = setup_test_data(aethirChecker, False, soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4)
+    if REPEAT is False:
+        aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), soph_test_0, params)
+
+    submit_values, admin_sig = setup_test_data(aethirChecker, REPEAT, False, soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4)
 
     print("")
-    tx = aethirChecker.submitReports(submit_values, admin_sig, {"from": deployer})
+    tx = aethirChecker.submitReports(submit_values, admin_sig, params)
 
-    print("")
-    deployer.transfer(to=deployer.address, amount=0)
+    if DIRECT_PAY is False:
+        print("")
+        deployer.transfer(to=deployer.address, amount=0)
 
     print("")
     #print(tx.events)
@@ -34,14 +50,14 @@ def run_a_test(aethirChecker=None):
 
 
     print("")
-    print ('aethirChecker.getReportsInRange(0, 100000000000000000000000)')
-    print ('len(aethirChecker.getReportsInRange(0, 100000000000000000000000))')
+    print ('aethirChecker.getReportsInRange(0, 100000000000000000000000, 10000)')
+    print ('len(aethirChecker.getReportsInRange(0, 100000000000000000000000, 10000))')
     print("")
-    print ('aethirChecker.getBatchesInRange(0, 100000000000000000000000)')
-    print ('len(aethirChecker.getBatchesInRange(0, 100000000000000000000000))')
+    print ('aethirChecker.getBatchesInRange(0, 100000000000000000000000, 10000)')
+    print ('len(aethirChecker.getBatchesInRange(0, 100000000000000000000000, 10000))')
 
     #print(aethirChecker.totalReportsInRange(5555555555555555, 100000000000000000000000))
-    #print (aethirChecker.getReportsInRange(0, 10000))
+    #print (aethirChecker.getReportsInRange(0, 10000, 10000))
     #print(aethirChecker.at(0))
 
     print("")
@@ -50,64 +66,84 @@ def run_a_test(aethirChecker=None):
 
 ## deployer = getDeployer()
 def getDeployer():
-    return accounts[0]
+    global DEPLOYER
+    return DEPLOYER
 
 ## soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts()
-def setup_test_accounts():
+def setup_test_accounts(REPEAT=False):
+    global DIRECT_PAY
 
     deployer = getDeployer()
 
     soph_test_0 = accounts.load("soph_test_0")
-    deployer.transfer(to=soph_test_0.address, amount=10e18)
+    print(soph_test_0.address)
+    if DIRECT_PAY and REPEAT is False: deployer.transfer(to=soph_test_0.address, amount=10e18)
 
     soph_test_1 = accounts.load("soph_test_1")
-    deployer.transfer(to=soph_test_1.address, amount=10e18)
+    print(soph_test_1.address)
+    if DIRECT_PAY and REPEAT is False: deployer.transfer(to=soph_test_1.address, amount=10e18)
 
     soph_test_2 = accounts.load("soph_test_2")
-    deployer.transfer(to=soph_test_2.address, amount=10e18)
+    print(soph_test_2.address)
+    if DIRECT_PAY and REPEAT is False: deployer.transfer(to=soph_test_2.address, amount=10e18)
 
     soph_test_3 = accounts.load("soph_test_3")
-    deployer.transfer(to=soph_test_3.address, amount=10e18)
+    print(soph_test_3.address)
+    if DIRECT_PAY and REPEAT is False: deployer.transfer(to=soph_test_3.address, amount=10e18)
 
     soph_test_4 = accounts.load("soph_test_4")
-    deployer.transfer(to=soph_test_4.address, amount=10e18)
+    print(soph_test_4.address)
+    if DIRECT_PAY and REPEAT is False: deployer.transfer(to=soph_test_4.address, amount=10e18)
 
     return soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4
 
 def deploy(deployer=None, report_admin=None):
+    global DIRECT_PAY, DO_VERIFY
 
     if deployer is None:
         deployer = getDeployer()
 
-    aethirCheckerImpl = AethirChecker.deploy({"from": deployer})
-    aethirCheckerProxy = AethirCheckerProxy.deploy(aethirCheckerImpl, aethirCheckerImpl.initialize.encode_input(), {"from": deployer})
-    aethirChecker = Contract.from_abi("aethirChecker", aethirCheckerProxy.address, aethirCheckerImpl.abi)
+    if DIRECT_PAY:
+        params = {"from": deployer}
+    else:
+        params = {"from": deployer, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"}
+
+    aethirCheckerImpl = AethirChecker.deploy(params, publish_source=DO_VERIFY)
+    #aethirCheckerImpl = Contract.from_abi("aethirChecker", "0x3b5aCb647c6cAa8d869C8C31cB18eb6e605d5b47", AethirChecker.abi)
+    aethirCheckerProxy = AethirCheckerProxy.deploy(aethirCheckerImpl.address, aethirCheckerImpl.initialize.encode_input(), params, publish_source=DO_VERIFY)
+
+    aethirChecker = Contract.from_abi("aethirChecker", aethirCheckerProxy.address, AethirChecker.abi)
 
     if report_admin is None:
-        aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), deployer, {"from": deployer})
+        aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), deployer, params)
     else:
-        aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), report_admin, {"from": deployer})
+        aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), report_admin, params)
 
     return aethirChecker
 
 ## submit_values, admin_sig = setup_test_data(aethirChecker)
-def setup_test_data(aethirChecker, VERBOSE=False, soph_test_0=None, soph_test_1=None, soph_test_2=None, soph_test_3=None, soph_test_4=None):
+def setup_test_data(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None, soph_test_1=None, soph_test_2=None, soph_test_3=None, soph_test_4=None):
     
     if soph_test_0 is None:
-        soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts()
+        soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts(REPEAT)
 
     parings = {}
     parings["7ba0f58f7393f9ff64592dfe1449c826cf474be0"] = soph_test_1
-    aethirChecker.registerClient("7ba0f58f7393f9ff64592dfe1449c826cf474be0", {"from": soph_test_1})
-
     parings["a97003be58e5fa268329b07275f9ff7fa2def95f"] = soph_test_2
-    aethirChecker.registerClient("a97003be58e5fa268329b07275f9ff7fa2def95f", {"from": soph_test_2})
-
     parings["e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b"] = soph_test_3
-    aethirChecker.registerClient("e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", {"from": soph_test_3})
-
     parings["b9078b727ffdc5e6f0d31d3a2787c66698e7db04"] = soph_test_4
-    aethirChecker.registerClient("b9078b727ffdc5e6f0d31d3a2787c66698e7db04", {"from": soph_test_4})
+
+    if REPEAT is False:
+        if DIRECT_PAY:
+            aethirChecker.registerClient("7ba0f58f7393f9ff64592dfe1449c826cf474be0", {"from": soph_test_1})
+            aethirChecker.registerClient("a97003be58e5fa268329b07275f9ff7fa2def95f", {"from": soph_test_2})
+            aethirChecker.registerClient("e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", {"from": soph_test_3})
+            aethirChecker.registerClient("b9078b727ffdc5e6f0d31d3a2787c66698e7db04", {"from": soph_test_4})
+        else:
+            aethirChecker.registerClient("7ba0f58f7393f9ff64592dfe1449c826cf474be0", {"from": soph_test_1, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient("a97003be58e5fa268329b07275f9ff7fa2def95f", {"from": soph_test_2, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient("e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", {"from": soph_test_3, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient("b9078b727ffdc5e6f0d31d3a2787c66698e7db04", {"from": soph_test_4, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
 
     raw_data = [
         [
@@ -127,7 +163,6 @@ def setup_test_data(aethirChecker, VERBOSE=False, soph_test_0=None, soph_test_1=
             {"jobId":"ct1rurs693qtmjk7ud3g","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"48471","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}}
         ]
     ]
-
 
     submit_values = []
     for b in raw_data:

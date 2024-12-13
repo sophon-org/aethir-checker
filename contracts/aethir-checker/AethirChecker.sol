@@ -294,7 +294,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         }
     }
 
-    function getReportsInRange(uint256 startTime, uint256 endTime) external view returns (Report[] memory reports) {
+    function getReportsInRange(uint256 startTime, uint256 endTime, uint256 limit) external view returns (Report[] memory reports) {
         if (startTime > endTime) {
             revert InvalidRange(startTime, endTime);
         }
@@ -316,12 +316,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             return reports;
         }
 
-        // allocate memory for the reports array
-        assembly {
-            let size := mul(add(not(0), 1), 0x20)
-            reports := mload(0x40)
-            mstore(0x40, add(reports, size))
-        }
+        reports = new Report[](limit);
 
         uint256 i;
         uint256 len;
@@ -333,6 +328,10 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 reports[idx] = repArr[i];
                 idx++;
             }
+        }
+
+        assembly {
+            mstore(reports, idx)
         }
     }
 
@@ -359,7 +358,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         }
     }
 
-    function getBatchesInRange(uint256 startTime, uint256 endTime) external view returns (Batch[] memory batches) {
+    function getBatchesInRange(uint256 startTime, uint256 endTime, uint256 limit) external view returns (Batch[] memory batches) {
         if (startTime > endTime) {
             revert InvalidRange(startTime, endTime);
         }
@@ -381,12 +380,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             return batches;
         }
 
-        // allocate memory for the batches array
-        assembly {
-            let size := mul(add(not(0), 1), 0x20)
-            batches := mload(0x40)
-            mstore(0x40, add(batches, size))
-        }
+        batches = new Batch[](limit);
 
         uint256 i;
         uint256 len;
@@ -398,6 +392,10 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 batches[idx] = repArr[i];
                 idx++;
             }
+        }
+
+        assembly {
+            mstore(batches, idx)
         }
     }
 

@@ -9,7 +9,7 @@
   "author": "Sophon",
   "license": "GPL-3.0-only",
   "devDependencies": {
-    "@openzeppelin/contracts": "5.1.0",
+    "@openzeppelin/contracts": "5.0.2",
     "cross-env": "7.0.3"
   }
 }
