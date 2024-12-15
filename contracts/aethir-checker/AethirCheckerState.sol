@@ -35,8 +35,7 @@ contract AethirCheckerState {
     mapping (address => uint256) public nonces;
 
     /// @notice Mapping to temporarily track counts of container hashes received
-    /// @dev TODO: make this internal
-    mapping (bytes32 => uint256) public _hashCounts;
+    mapping (bytes32 => uint256) internal _hashCounts;
 
     uint256 public totalReports;
     Report[][] public storedReports; // array of Report arrays at each timestamp checkpoint
