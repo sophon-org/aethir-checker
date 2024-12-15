@@ -23,14 +23,9 @@ contract AethirCheckerState {
     }
 
     struct Batch {
-        string jobId;           // jobId (string)
-        string[] licenseIds;    // jobIds (string[])
-        int64 epoch;            // epoch (int64)
-        int256 period;          // period  (int)
-        int256 reportTime;      // reportTime (int)
-        string containerId;     // containerId (string)
-        uint8 jobType;          // jobType (uint8)
-        bytes containerData;    // Liveness: container.continues (bool), container.loss (uint8), container.duration (int64) OR Capacity: container.qualified (bool)
+        string correctJobId;        // jobId (string)
+        string[] correctLicIds;     // licenseIds (string[])
+        string[] incorrectLicIds;   // licenseIds (string[])
     }
 
     /// @notice EIP-712 Domain Separator

@@ -14,7 +14,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     event RegisterClient(address client, string clientId, address admin);
     event DeregisterClient(address client, string clientId, address admin);
 
-    event Logger(uint256 uint256val1, uint256 uint256val2, bytes32 bytes32Val1, address addr1, string str1, string str2);
+    //event Logger(uint256 uint256val1, uint256 uint256val2, bytes32 bytes32Val1, address addr1, string str1, string str2);
 
     event ReportReceived(
         string jobId,
@@ -29,18 +29,13 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     );
 
     event BatchPassed(
-        string jobId,
-        string[] licenseIds,
-        int64 epoch,
-        int256 period,
-        int256 reportTime,
-        string containerId,
-        uint8 jobType,
-        bytes containerData
+        string correctJobId,
+        string[] correctLicIds,
+        string[] incorrectLicIds
     );
 
     event BatchFailed(
-        string[] licenseIds,
+        string[] incorrectLicIds,
         string error
     );
 
@@ -133,67 +128,63 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             if (reportsLen == 0) {
                 emit BatchFailed(
                     new string[](0),
-                    "empty"
+                    "empty batch"
                 );
                 continue;
             }
 
-            uint256 validCount;
+            uint256 correctCount;
             bytes32[] memory containerHashes = new bytes32[](reportsLen);
-            string[] memory licenseIds = new string[](reportsLen);
             for (uint256 j; j < reportsLen; j++) {
                 Report memory report = reports[i][j];
 
-                if (bytes(report.clientId).length != 0) {
-                    licenseIds[j] = report.clientId;
-                } else {
-                    emit Logger(i, j, 0, address(0), "", "invalid report (clientId)");
-
-                    continue;
-                }
-
                 if (bytes(report.jobId).length == 0 ||
+                    bytes(report.clientId).length == 0 ||
                     bytes(report.licenseId).length == 0 ||
                     report.epoch == 0 ||
                     report.period == 0 ||
                     report.reportTime == 0 ||
                     bytes(report.containerId).length == 0 ||
                     report.jobType == 0 ||
-                    report.containerData.length == 0 ||
-                    report.signatureData.length == 0) {
-                    
-                    emit Logger(i, j, 0, address(0), "", "invalid report");
+                    report.containerData.length == 0) {
+                    // TODO: Check for report.signatureData.length == 0 later
+
+                    //emit Logger(i, j, 0, address(0), "", "invalid report");
 
                     continue;
                 }
 
-                // TODO for later: address client = _authenticateReportClient(report.signatureData);
                 address client;
+                /*// TODO for later: 
+                client = _authenticateReportClient(report.signatureData);
 
                 if (keccak256(abi.encodePacked(clientToId[client])) != keccak256(abi.encodePacked(report.clientId))) {
-                    emit Logger(i, j, 0, client, report.clientId, "clientId mismatch");
+                    //emit Logger(i, j, 0, client, report.clientId, "clientId mismatch");
 
                     continue;
                 }
-
-                emit Logger(i, j, 0, client, report.clientId, "checks passed");
+                */
+                if (idToClient[report.clientId] == address(0)) {
+                    //emit Logger(i, j, 0, client, report.clientId, "clientId missing");
+                    continue;
+                }
 
                 // only consider reports that make it this far for additional processing
+                //emit Logger(i, j, 0, client, report.clientId, "checks passed");
 
                 _addReport(report);
    
-                validCount++;
+                correctCount++;
                 containerHashes[j] = keccak256(report.containerData);
 
                 // clear state for hash if remaining from an earlier txn
                 _hashCounts[containerHashes[j]] = 0;
             }
 
-            uint256 majorityCount = uint256(validCount) / 2 + 1;
+            uint256 majorityCount = uint256(correctCount) / 2 + 1;
             uint256 majorityIdx;
             uint256 majorityHashCount;
-
-            if (validCount != 0) {
+            if (correctCount != 0) {
                 bytes32 thisHash;
                 uint256 hashCount;
                 for (uint256 j; j < reportsLen; j++) {
@@ -208,11 +199,36 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 }
             }
 
+            correctCount = 0;
+            uint256 incorrectCount = 0;
+            string[] memory correctLicIds;
+            string[] memory incorrectLicIds;
             if (majorityHashCount >= majorityCount) {
-                _addBatch(reports[i][majorityIdx], licenseIds);
+                correctLicIds = new string[](majorityHashCount);
+                incorrectLicIds = new string[](reportsLen-majorityHashCount);
+                for (uint256 j; j < reportsLen; j++) {
+                    if (containerHashes[j] != containerHashes[majorityIdx]) {
+                        incorrectLicIds[incorrectCount++] = reports[i][j].licenseId;
+                    } else {
+                        correctLicIds[correctCount++] = reports[i][j].licenseId;
+                    }
+                }
+
+                _addBatch(Batch({
+                    correctJobId: reports[i][majorityIdx].jobId,
+                    correctLicIds: correctLicIds,
+                    incorrectLicIds: incorrectLicIds
+                }));
+
             } else {
+                // all are considered incorrect
+                incorrectLicIds = new string[](reportsLen);
+                for (uint256 j; j < reportsLen; j++) {
+                    incorrectLicIds[incorrectCount++] = reports[i][j].licenseId;
+                }
+
                 emit BatchFailed(
-                    licenseIds,
+                    incorrectLicIds,
                     "majority rule"
                 );
             }
@@ -466,18 +482,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         );
     }
 
-    function _addBatch(Report memory report, string[] memory licenseIds) internal {
-
-        Batch memory batch = Batch({
-            jobId: report.jobId,
-            licenseIds: licenseIds,
-            epoch: report.epoch,
-            period: report.period,
-            reportTime: report.reportTime,
-            containerId: report.containerId,
-            jobType: report.jobType,
-            containerData: report.containerData
-        });
+    function _addBatch(Batch memory batch) internal {
 
         (,uint256 timestamp, uint256 pos) = storedBatchCheckpoint_.latestCheckpoint();
         Batch[] storage _ref;
@@ -493,14 +498,9 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         totalBatches++;
 
         emit BatchPassed(
-            batch.jobId,
-            batch.licenseIds,
-            batch.epoch,
-            batch.period,
-            batch.reportTime,
-            batch.containerId,
-            batch.jobType,
-            batch.containerData
+            batch.correctJobId,
+            batch.correctLicIds,
+            batch.incorrectLicIds
         );
     }
 

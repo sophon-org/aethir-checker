@@ -16,7 +16,7 @@ from brownie.network.gas.strategies import LinearScalingStrategy
 gas_strategy = LinearScalingStrategy("12 gwei", "60 gwei", 1.1)
 gas_price(gas_strategy) ## gas_price(20e9)'''
 
-
+## aethirChecker = None; tx, aethirChecker = run("deploy", "run_a_test", [aethirChecker, False])
 def run_a_test(aethirChecker=None, REPEAT=False):
     global DIRECT_PAY
 
@@ -45,10 +45,17 @@ def run_a_test(aethirChecker=None, REPEAT=False):
 
     print("")
     #print(tx.events)
-    print("BatchPassed", tx.events["BatchPassed"])
-    print("BatchFailed", tx.events["BatchFailed"])
-
-
+    try:
+        print("BatchPassed", tx.events["BatchPassed"])
+    except:
+        pass
+    try:
+        print("BatchFailed", tx.events["BatchFailed"])
+    except:
+        pass
+    
+    #print('tx.events["BatchPassed"]')
+    #print('tx.events["BatchFailed"]')
     print("")
     print ('aethirChecker.getReportsInRange(0, 100000000000000000000000, 10000)')
     print ('len(aethirChecker.getReportsInRange(0, 100000000000000000000000, 10000))')
@@ -62,7 +69,7 @@ def run_a_test(aethirChecker=None, REPEAT=False):
 
     print("")
 
-    return aethirChecker
+    return tx, aethirChecker
 
 ## deployer = getDeployer()
 def getDeployer():
@@ -149,8 +156,9 @@ def setup_test_data(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None
         [
             {"jobId":"ct1rurs693qtmjkjiat0","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"85142","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":0,"loss":30,"duration":0,"qualified":0}},
             {"jobId":"ct1rurs693qtmjk7d8h0","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"74913","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":1,"loss":30,"duration":0,"qualified":0}},
-            {"jobId":"ct1rurs693qtmjk813b0","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3ba","licenseId":"12041","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":0,"loss":30,"duration":0,"qualified":0}}, {"jobId":"ct1rurs693qtmjkieob0","clientId":"b9078b727ffdc5e6f0d31d3a2787c66698e7db04a","licenseId":"84520","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":30,"duration":0,"qualified":0}},
-            {"jobId":"ct1rurs693qtmjkegi4g","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0a","licenseId":"56870","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":30,"duration":0,"qualified":0}}
+            {"jobId":"ct1rurs693qtmjk813b0","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"12041","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkieob0","clientId":"b9078b727ffdc5e6f0d31d3a2787c66698e7db04","licenseId":"84520","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkegi4g","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"56870","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":31,"duration":0,"qualified":0}}
         ],
         [
             {"jobId":"ct1rurs693qtmjklgc7g","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"14505","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3000170705","continues":0,"loss":30,"duration":0,"qualified":0}},
@@ -158,8 +166,8 @@ def setup_test_data(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None
         ],
         [
             {"jobId":"ct1rurs693qtmjkcfre0","clientId":"b9078b727ffdc5e6f0d31d3a2787c66698e7db04","licenseId":"8064","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}},
-            {"jobId":"ct1rurs693qtmjkldavg","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"10672","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}},
-            {"jobId":"ct1rurs693qtmjkfhfj0","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"77060","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkldavg","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"10672","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":1,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkfhfj0","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"77060","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":1,"loss":30,"duration":0,"qualified":0}},
             {"jobId":"ct1rurs693qtmjk7ud3g","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"48471","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}}
         ]
     ]
