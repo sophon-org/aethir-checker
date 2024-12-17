@@ -164,10 +164,11 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                     continue;
                 }
                 */
+                /* TODO for later: MVP doesn't need this yet
                 if (idToClient[report.clientId] == address(0)) {
                     //emit Logger(i, j, 0, client, report.clientId, "clientId missing");
                     continue;
-                }
+                }*/
 
                 // only consider reports that make it this far for additional processing
                 //emit Logger(i, j, 0, client, report.clientId, "checks passed");
