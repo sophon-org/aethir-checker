@@ -38,6 +38,7 @@ def run_a_test(aethirChecker=None, REPEAT=False):
 
     print("")
     tx = aethirChecker.submitReports(submit_values, admin_sig, params)
+    print("\nReports submitted.\n")
 
     if DIRECT_PAY is False:
         print("")

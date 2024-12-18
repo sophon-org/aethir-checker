@@ -135,8 +135,9 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
             uint256 correctCount;
             bytes32[] memory containerHashes = new bytes32[](reportsLen);
+            Report memory report;
             for (uint256 j; j < reportsLen; j++) {
-                Report memory report = reports[i][j];
+                report = reports[i][j];
 
                 if (bytes(report.jobId).length == 0 ||
                     bytes(report.clientId).length == 0 ||
@@ -178,15 +179,15 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 correctCount++;
                 containerHashes[j] = keccak256(report.containerData);
 
-                // clear state for hash if remaining from an earlier txn
+                // clear state for hash if remaining from an earlier txn (just in case)
                 _hashCounts[containerHashes[j]] = 0;
             }
 
             uint256 majorityCount = uint256(correctCount) / 2 + 1;
             uint256 majorityIdx;
             uint256 majorityHashCount;
+            bytes32 thisHash;
             if (correctCount != 0) {
-                bytes32 thisHash;
                 uint256 hashCount;
                 for (uint256 j; j < reportsLen; j++) {
                     if (containerHashes[j] == 0) continue;
@@ -202,34 +203,50 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
             correctCount = 0;
             uint256 incorrectCount = 0;
-            string[] memory correctLicIds;
-            string[] memory incorrectLicIds;
+
+            // correct, incorrect
+            string[][2] memory licIdGroups;
             if (majorityHashCount >= majorityCount) {
-                correctLicIds = new string[](majorityHashCount);
-                incorrectLicIds = new string[](reportsLen-majorityHashCount);
+                licIdGroups[0] = new string[](majorityHashCount);
+                licIdGroups[1] = new string[](reportsLen-majorityHashCount);
+                bytes32 majorityHash = containerHashes[majorityIdx];
                 for (uint256 j; j < reportsLen; j++) {
-                    if (containerHashes[j] != containerHashes[majorityIdx]) {
-                        incorrectLicIds[incorrectCount++] = reports[i][j].licenseId;
+                    thisHash = containerHashes[j];
+                    report = reports[i][j];
+                    if (thisHash != majorityHash) {
+                        licIdGroups[1][incorrectCount++] = report.licenseId;
                     } else {
-                        correctLicIds[correctCount++] = reports[i][j].licenseId;
+                        licIdGroups[0][correctCount++] = report.licenseId;
+                    }
+
+                    if (thisHash != 0) {
+                        // don't leave temporary state behind
+                        _hashCounts[thisHash] = 0;
                     }
                 }
 
+                report = reports[i][majorityIdx];
                 _addBatch(Batch({
-                    correctJobId: reports[i][majorityIdx].jobId,
-                    correctLicIds: correctLicIds,
-                    incorrectLicIds: incorrectLicIds
+                    correctJobId: report.jobId,
+                    correctLicIds: licIdGroups[0],
+                    incorrectLicIds: licIdGroups[1]
                 }));
 
             } else {
                 // all are considered incorrect
-                incorrectLicIds = new string[](reportsLen);
+                licIdGroups[1] = new string[](reportsLen);
                 for (uint256 j; j < reportsLen; j++) {
-                    incorrectLicIds[incorrectCount++] = reports[i][j].licenseId;
+                    report = reports[i][j];
+                    licIdGroups[1][incorrectCount++] = report.licenseId;
+                    thisHash = containerHashes[j];
+                    if (thisHash != 0) {
+                        // don't leave temporary state behind
+                        _hashCounts[thisHash] = 0;
+                    }
                 }
 
                 emit BatchFailed(
-                    incorrectLicIds,
+                    licIdGroups[1],
                     "majority rule"
                 );
             }
@@ -457,6 +474,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
     function _addReport(Report memory report) internal {
 
+        /*// TODO for later: Store verified reports on chain?
         (,uint256 timestamp, uint256 pos) = storedReportCheckpoint_.latestCheckpoint();
         Report[] storage _ref;
         if (block.timestamp != timestamp) {
@@ -466,7 +484,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         } else {
             // checking already exists
             storedReports[pos-1].push(report);
-        }
+        }*/
 
         totalReports++;
 
@@ -485,6 +503,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
     function _addBatch(Batch memory batch) internal {
 
+        /*// TODO for later: Store verified reports on chain?
         (,uint256 timestamp, uint256 pos) = storedBatchCheckpoint_.latestCheckpoint();
         Batch[] storage _ref;
         if (block.timestamp != timestamp) {
@@ -494,7 +513,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         } else {
             // checking already exists
             storedBatches[pos-1].push(batch);
-        }
+        }*/
 
         totalBatches++;
 
