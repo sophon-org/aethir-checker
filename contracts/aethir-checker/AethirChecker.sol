@@ -488,7 +488,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
         totalReports++;
 
-        emit ReportReceived(
+        /*emit ReportReceived(
             report.jobId,
             report.clientId,
             report.licenseId,
@@ -498,7 +498,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             report.containerId,
             report.jobType,
             report.containerData
-        );
+        );*/
     }
 
     function _addBatch(Batch memory batch) internal {
