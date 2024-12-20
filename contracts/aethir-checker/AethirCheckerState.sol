@@ -22,6 +22,12 @@ contract AethirCheckerState {
         bytes signatureData;    // client's signature
     }
 
+    struct ReportMinified {
+        string jobId;           // jobId (string)
+        uint256 licenseId;      // licenseId (uint256)
+        bytes32 containerHash;  // keccak hash of container data
+    }
+
     struct Batch {
         string correctJobId;        // jobId (string)
         string[] correctLicIds;     // licenseIds (string[])

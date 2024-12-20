@@ -16,8 +16,8 @@ from brownie.network.gas.strategies import LinearScalingStrategy
 gas_strategy = LinearScalingStrategy("12 gwei", "60 gwei", 1.1)
 gas_price(gas_strategy) ## gas_price(20e9)'''
 
-## aethirChecker = None; tx, aethirChecker = run("deploy", "run_a_test", [aethirChecker, False])
-def run_a_test(aethirChecker=None, REPEAT=False):
+## aethirChecker = None; tx, aethirChecker = run("deploy", "run_a_test", [aethirChecker, False, True])
+def run_a_test(aethirChecker=None, REPEAT=False, MINIFY=True):
     global DIRECT_PAY
 
     deployer = getDeployer()
@@ -34,13 +34,20 @@ def run_a_test(aethirChecker=None, REPEAT=False):
     if REPEAT is False:
         aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), soph_test_0, params)
 
-    submit_values, admin_sig = setup_test_data(aethirChecker, REPEAT, False, soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4)
+    if MINIFY:
+        submit_values = setup_test_data_minified(aethirChecker, REPEAT, False, soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4)
 
-    print("")
-    tx = aethirChecker.submitReports(submit_values, admin_sig, params)
+        print("")
+        params["from"] = soph_test_0
+        tx = aethirChecker.submitReportsMinified(submit_values, params)
+    else:
+        submit_values, admin_sig = setup_test_data(aethirChecker, REPEAT, False, soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4)
+
+        print("")
+        tx = aethirChecker.submitReports(submit_values, admin_sig, params)
     print("\nReports submitted.\n")
 
-    if DIRECT_PAY is False:
+    if DIRECT_PAY is True:
         print("")
         deployer.transfer(to=deployer.address, amount=0)
 
@@ -49,11 +56,17 @@ def run_a_test(aethirChecker=None, REPEAT=False):
     try:
         print("BatchPassed", tx.events["BatchPassed"])
     except:
-        pass
+        try:
+            print("BatchPassedM", tx.events["BatchPassedM"])
+        except:
+            pass
     try:
         print("BatchFailed", tx.events["BatchFailed"])
     except:
-        pass
+        try:
+            print("BatchFailedM", tx.events["BatchFailedM"])
+        except:
+            pass
     
     #print('tx.events["BatchPassed"]')
     #print('tx.events["BatchFailed"]')
@@ -128,6 +141,68 @@ def deploy(deployer=None, report_admin=None):
         aethirChecker.grantRole(aethirChecker.REPORT_ADMIN_ROLE(), report_admin, params)
 
     return aethirChecker
+
+def setup_test_data_minified(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None, soph_test_1=None, soph_test_2=None, soph_test_3=None, soph_test_4=None):
+    
+    if soph_test_0 is None:
+        soph_test_0, soph_test_1, soph_test_2, soph_test_3, soph_test_4 = setup_test_accounts(REPEAT)
+
+    parings = {}
+    parings["7ba0f58f7393f9ff64592dfe1449c826cf474be0"] = soph_test_1
+    parings["a97003be58e5fa268329b07275f9ff7fa2def95f"] = soph_test_2
+    parings["e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b"] = soph_test_3
+    parings["b9078b727ffdc5e6f0d31d3a2787c66698e7db04"] = soph_test_4
+
+    if REPEAT is False:
+        if DIRECT_PAY:
+            aethirChecker.registerClient(soph_test_1, "7ba0f58f7393f9ff64592dfe1449c826cf474be0", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_2, "a97003be58e5fa268329b07275f9ff7fa2def95f", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_3, "e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", b'', {"from": soph_test_0})
+            aethirChecker.registerClient(soph_test_4, "b9078b727ffdc5e6f0d31d3a2787c66698e7db04", b'', {"from": soph_test_0})
+        else:
+            aethirChecker.registerClient(soph_test_1, "7ba0f58f7393f9ff64592dfe1449c826cf474be0", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_2, "a97003be58e5fa268329b07275f9ff7fa2def95f", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_3, "e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+            aethirChecker.registerClient(soph_test_4, "b9078b727ffdc5e6f0d31d3a2787c66698e7db04", b'', {"from": soph_test_0, "paymaster_address": "0x98546B226dbbA8230cf620635a1e4ab01F6A99B2"})
+
+    raw_data = [
+        [
+            {"jobId":"ct1rurs693qtmjkjiat0","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"85142","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjk7d8h0","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"74913","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":1,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjk813b0","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"12041","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3111122394","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkieob0","clientId":"b9078b727ffdc5e6f0d31d3a2787c66698e7db04","licenseId":"84520","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkegi4g","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"56870","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"113135806","continues":0,"loss":31,"duration":0,"qualified":0}}
+        ],
+        [
+            {"jobId":"ct1rurs693qtmjklgc7g","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"14505","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3000170705","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkin1mg","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"74741","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"3000170705","continues":0,"loss":30,"duration":0,"qualified":0}}
+        ],
+        [
+            {"jobId":"ct1rurs693qtmjkcfre0","clientId":"b9078b727ffdc5e6f0d31d3a2787c66698e7db04","licenseId":"8064","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkldavg","clientId":"7ba0f58f7393f9ff64592dfe1449c826cf474be0","licenseId":"10672","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":1,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjkfhfj0","clientId":"a97003be58e5fa268329b07275f9ff7fa2def95f","licenseId":"77060","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":1,"loss":30,"duration":0,"qualified":0}},
+            {"jobId":"ct1rurs693qtmjk7ud3g","clientId":"e0ae0110a8fed8fd095a0bd9bb17c07d1134df3b","licenseId":"48471","jobType":1,"jobTimeType":1,"epoch":60,"period":167,"reportTime":1732503600,"container":{"id":"211331516","continues":0,"loss":30,"duration":0,"qualified":0}}
+        ]
+    ]
+
+    submit_values = []
+    for b in raw_data:
+        if VERBOSE: print(b)
+        row_array = []
+        for r in b:
+            if VERBOSE: print(r);
+            container_data = encode(["uint256", "uint256", "uint256"], [r["container"]["continues"], r["container"]["loss"], r["container"]["duration"]]).hex()
+            if VERBOSE: print("container_data", container_data)
+            row_array.append(
+                (
+                    r["jobId"],
+                    r["licenseId"],
+                    Web3.keccak(hexstr=container_data),
+                )
+            )
+        submit_values.append(row_array)
+
+    return submit_values
 
 ## submit_values, admin_sig = setup_test_data(aethirChecker)
 def setup_test_data(aethirChecker, REPEAT=False, VERBOSE=False, soph_test_0=None, soph_test_1=None, soph_test_2=None, soph_test_3=None, soph_test_4=None):

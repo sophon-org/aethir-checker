@@ -39,6 +39,17 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         string error
     );
 
+    event BatchPassedM(
+        string correctJobId,
+        uint256[] correctLicIds,
+        uint256[] incorrectLicIds
+    );
+
+    event BatchFailedM(
+        uint256[] incorrectLicIds,
+        string error
+    );
+
     /// @notice Thrown when the counts of receivers and amounts do not match
     error CountMismatch();
 
@@ -114,6 +125,118 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         emit DeregisterClient(client, clientId, admin);
     }
 
+    function submitReportsMinified(ReportMinified[][] memory reports) external {
+        if (!hasRole(REPORT_ADMIN_ROLE, msg.sender)) {
+            revert Unauthorized(msg.sender);
+        }
+
+        if (reports.length == 0) {
+            revert BatchesNotSent();
+        }
+
+        for (uint256 i; i < reports.length; i++) {
+
+            uint256 reportsLen = reports[i].length;
+
+            if (reportsLen == 0) {
+                emit BatchFailed(
+                    new string[](0),
+                    "empty batch"
+                );
+                continue;
+            }
+
+            uint256 correctCount;
+            bytes32[] memory containerHashes = new bytes32[](reportsLen);
+            ReportMinified memory report;
+            for (uint256 j; j < reportsLen; j++) {
+                report = reports[i][j];
+
+                if (bytes(report.jobId).length == 0 ||
+                    report.licenseId == 0 ||
+                    report.containerHash == 0) {
+                    continue;
+                }
+
+                totalReports++;
+
+                correctCount++;
+                containerHashes[j] = report.containerHash;
+
+                // clear state for hash if remaining from an earlier txn (just in case)
+                _hashCounts[containerHashes[j]] = 0;
+            }
+
+            uint256 majorityCount = uint256(correctCount) / 2 + 1;
+            uint256 majorityIdx;
+            uint256 majorityHashCount;
+            bytes32 thisHash;
+            if (correctCount != 0) {
+                uint256 hashCount;
+                for (uint256 j; j < reportsLen; j++) {
+                    if (containerHashes[j] == 0) continue;
+                    thisHash = containerHashes[j];
+                    hashCount = _hashCounts[thisHash] + 1;
+                    if (hashCount > majorityHashCount) {
+                        majorityIdx = j;
+                        majorityHashCount = hashCount;
+                    }
+                    _hashCounts[thisHash] = hashCount;
+                }
+            }
+
+            correctCount = 0;
+            uint256 incorrectCount = 0;
+
+            // correct, incorrect
+            uint256[][2] memory licIdGroups;
+            if (majorityHashCount >= majorityCount) {
+                licIdGroups[0] = new uint256[](majorityHashCount);
+                licIdGroups[1] = new uint256[](reportsLen-majorityHashCount);
+                bytes32 majorityHash = containerHashes[majorityIdx];
+                for (uint256 j; j < reportsLen; j++) {
+                    thisHash = containerHashes[j];
+                    report = reports[i][j];
+                    if (thisHash != majorityHash) {
+                        licIdGroups[1][incorrectCount++] = report.licenseId;
+                    } else {
+                        licIdGroups[0][correctCount++] = report.licenseId;
+                    }
+
+                    if (thisHash != 0) {
+                        // don't leave temporary state behind
+                        _hashCounts[thisHash] = 0;
+                    }
+                }
+
+                totalBatches++;
+                emit BatchPassedM(
+                    reports[i][majorityIdx].jobId,
+                    licIdGroups[0],
+                    licIdGroups[1]
+                );
+
+            } else {
+                // all are considered incorrect
+                licIdGroups[1] = new uint256[](reportsLen);
+                for (uint256 j; j < reportsLen; j++) {
+                    report = reports[i][j];
+                    licIdGroups[1][incorrectCount++] = report.licenseId;
+                    thisHash = containerHashes[j];
+                    if (thisHash != 0) {
+                        // don't leave temporary state behind
+                        _hashCounts[thisHash] = 0;
+                    }
+                }
+
+                emit BatchFailedM(
+                    licIdGroups[1],
+                    "majority rule"
+                );
+            }
+        }
+    }
+
     function submitReports(Report[][] memory reports, bytes memory signatureData) external {
         address admin = _authenticateReportAdmin(signatureData);
 
@@ -175,7 +298,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 //emit Logger(i, j, 0, client, report.clientId, "checks passed");
 
                 _addReport(report);
-   
+
                 correctCount++;
                 containerHashes[j] = keccak256(report.containerData);
 
