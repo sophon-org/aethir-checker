@@ -39,13 +39,13 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         string error
     );
 
-    event BatchPassedM(
+    event BatchPassed(
         string correctJobId,
         uint256[] correctLicIds,
         uint256[] incorrectLicIds
     );
 
-    event BatchFailedM(
+    event BatchFailed(
         uint256[] incorrectLicIds,
         string error
     );
@@ -210,7 +210,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                 }
 
                 totalBatches++;
-                emit BatchPassedM(
+                emit BatchPassed(
                     reports[i][majorityIdx].jobId,
                     licIdGroups[0],
                     licIdGroups[1]
@@ -229,7 +229,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                     }
                 }
 
-                emit BatchFailedM(
+                emit BatchFailed(
                     licIdGroups[1],
                     "majority rule"
                 );

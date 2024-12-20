@@ -56,17 +56,11 @@ def run_a_test(aethirChecker=None, REPEAT=False, MINIFY=True):
     try:
         print("BatchPassed", tx.events["BatchPassed"])
     except:
-        try:
-            print("BatchPassedM", tx.events["BatchPassedM"])
-        except:
-            pass
+        pass
     try:
         print("BatchFailed", tx.events["BatchFailed"])
     except:
-        try:
-            print("BatchFailedM", tx.events["BatchFailedM"])
-        except:
-            pass
+        pass
     
     #print('tx.events["BatchPassed"]')
     #print('tx.events["BatchFailed"]')
