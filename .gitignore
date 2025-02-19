@@ -62,3 +62,5 @@ docs/
 .env
 lcov.info
 report/
+*.bin
+*.json

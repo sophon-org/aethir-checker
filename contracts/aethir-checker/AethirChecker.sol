@@ -132,6 +132,20 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         emit DeregisterClient(client, clientId, admin);
     }
 
+    error InvalidSlice(string);
+
+    function _slice(uint128[] memory data, uint from, uint to) internal pure returns(uint128[] memory) {
+        if (to > data.length) revert InvalidSlice("to cannot be greater than length of data");
+        if (from > to) revert InvalidSlice("from cannot be greater than to");
+
+        uint128[] memory sliced = new uint128[](to - from);
+        for (uint i = from; i < to; i++) {
+            sliced[i - from] = data[i];
+        }
+        return sliced;
+    } 
+
+
     function submitCompletedBatch(CompletedBatch[] memory batches) external {
         if (!hasRole(REPORT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(msg.sender);
@@ -141,56 +155,32 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             revert BatchesNotSent();
         }
 
-        CompletedBatch memory batch;
-        uint256 j;
 
-        for (uint256 i; i < batches.length; i++) {
-            batch = batches[i];
+        for (uint i; i < batches.length; i++) {
+            CompletedBatch memory batch = batches[i];
 
-            uint128[] memory correctLicIds;
-            uint128[] memory incorrectLicIds;
-            uint256 licIdLength = batch.licenseIds.length;
-            if (licIdLength == 0) {
-                revert IdsNotSent();
-            }
 
-            uint256 correctIdsLength;
-            uint256 incorrectIdsStart = batch.incorrectStartingIndex;
-            if (incorrectIdsStart > licIdLength) {
-                incorrectIdsStart = licIdLength; // no incorrect Ids
-            }
-            if (incorrectIdsStart != 0) {
-                correctIdsLength = incorrectIdsStart;
-            }
+            // no license IDs sent in this batch
+            if (batch.licenseIds.length == 0) revert IdsNotSent(); 
 
-            if (incorrectIdsStart < licIdLength) {
-                incorrectLicIds = new uint128[](licIdLength-incorrectIdsStart);
-                for (j = incorrectIdsStart; j < licIdLength; j++) {
-                    incorrectLicIds[j-incorrectIdsStart] = batch.licenseIds[j];
-                }
-            }
+            uint128[] memory correctLicenseIds = _slice(batch.licenseIds, 0, batch.incorrectStartingIndex);
+            uint128[] memory incorrectLicenseIds = _slice(batch.licenseIds, batch.incorrectStartingIndex, batch.licenseIds.length);
 
-            if (correctIdsLength != 0) {
-                // batch passed
-
-                correctLicIds = new uint128[](correctIdsLength);
-                for (j = 0; j < correctIdsLength; j++) {
-                    correctLicIds[j] = batch.licenseIds[j];
-                }
-
-                emit BatchPassed(
-                    batch.errorOrJobId, // correctJobId
-                    correctLicIds,
-                    incorrectLicIds
-                );
-            } else {
-                // batch failed
-
+            if (correctLicenseIds.length == 0) {
+                // no correct batches
                 emit BatchFailed(
-                    incorrectLicIds,
-                    batch.errorOrJobId // error
+                    incorrectLicenseIds,
+                    batch.errorOrJobId
                 );
+
+                continue;
             }
+            // batch passed otherwise
+            emit BatchPassed(
+                batch.errorOrJobId,
+                correctLicenseIds,
+                incorrectLicenseIds
+            );
         }
     }
 
@@ -267,9 +257,9 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
                     thisHash = containerHashes[j];
                     report = reports[i][j];
                     if (thisHash != majorityHash) {
-                        licIdGroups[1][incorrectCount++] = report.licenseId;
+                        licIdGroups[1][incorrectCount++] = uint128(report.licenseId);
                     } else {
-                        licIdGroups[0][correctCount++] = report.licenseId;
+                        licIdGroups[0][correctCount++] = uint128(report.licenseId);
                     }
 
                     if (thisHash != 0) {
