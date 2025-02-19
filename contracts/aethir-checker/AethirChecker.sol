@@ -11,6 +11,12 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuable {
     using Checkpoints for Checkpoints.Trace208;
 
+    struct CompletedBatch {
+        uint128[] licenseIds;
+        uint64 incorrectStartingIndex;
+        string errorOrJobId; // reason or jobid
+    }
+
     event RegisterClient(address client, string clientId, address admin);
     event DeregisterClient(address client, string clientId, address admin);
 
@@ -41,12 +47,12 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
     event BatchPassed(
         string correctJobId,
-        uint256[] correctLicIds,
-        uint256[] incorrectLicIds
+        uint128[] correctLicIds,
+        uint128[] incorrectLicIds
     );
 
     event BatchFailed(
-        uint256[] incorrectLicIds,
+        uint128[] incorrectLicIds,
         string error
     );
 
@@ -75,6 +81,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
     error Unauthorized(address caller);
 
     error BatchesNotSent();
+    error IdsNotSent();
     error ClientIdIsZero();
     error ClientExists(address client, string clientId);
     error ClientDoesNotExist();
@@ -123,6 +130,68 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
         idToClient[clientId] = address(0);
 
         emit DeregisterClient(client, clientId, admin);
+    }
+
+    function submitCompletedBatch(CompletedBatch[] memory batches) external {
+        if (!hasRole(REPORT_ADMIN_ROLE, msg.sender)) {
+            revert Unauthorized(msg.sender);
+        }
+
+        if (batches.length == 0) {
+            revert BatchesNotSent();
+        }
+
+        CompletedBatch memory batch;
+        uint256 j;
+
+        for (uint256 i; i < batches.length; i++) {
+            batch = batches[i];
+
+            uint128[] memory correctLicIds;
+            uint128[] memory incorrectLicIds;
+            uint256 licIdLength = batch.licenseIds.length;
+            if (licIdLength == 0) {
+                revert IdsNotSent();
+            }
+
+            uint256 correctIdsLength;
+            uint256 incorrectIdsStart = batch.incorrectStartingIndex;
+            if (incorrectIdsStart > licIdLength) {
+                incorrectIdsStart = licIdLength; // no incorrect Ids
+            }
+            if (incorrectIdsStart != 0) {
+                correctIdsLength = incorrectIdsStart;
+            }
+
+            if (incorrectIdsStart < licIdLength) {
+                incorrectLicIds = new uint128[](licIdLength-incorrectIdsStart);
+                for (j = incorrectIdsStart; j < licIdLength; j++) {
+                    incorrectLicIds[j-incorrectIdsStart] = batch.licenseIds[j];
+                }
+            }
+
+            if (correctIdsLength != 0) {
+                // batch passed
+
+                correctLicIds = new uint128[](correctIdsLength);
+                for (j = 0; j < correctIdsLength; j++) {
+                    correctLicIds[j] = batch.licenseIds[j];
+                }
+
+                emit BatchPassed(
+                    batch.errorOrJobId, // correctJobId
+                    correctLicIds,
+                    incorrectLicIds
+                );
+            } else {
+                // batch failed
+
+                emit BatchFailed(
+                    incorrectLicIds,
+                    batch.errorOrJobId // error
+                );
+            }
+        }
     }
 
     function submitReportsMinified(ReportMinified[][] memory reports) external {
@@ -189,10 +258,10 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
             uint256 incorrectCount = 0;
 
             // correct, incorrect
-            uint256[][2] memory licIdGroups;
+            uint128[][2] memory licIdGroups;
             if (majorityHashCount >= majorityCount) {
-                licIdGroups[0] = new uint256[](majorityHashCount);
-                licIdGroups[1] = new uint256[](reportsLen-majorityHashCount);
+                licIdGroups[0] = new uint128[](majorityHashCount);
+                licIdGroups[1] = new uint128[](reportsLen-majorityHashCount);
                 bytes32 majorityHash = containerHashes[majorityIdx];
                 for (uint256 j; j < reportsLen; j++) {
                     thisHash = containerHashes[j];
@@ -218,7 +287,7 @@ contract AethirChecker is UpgradeableAccessControl, AethirCheckerState, Rescuabl
 
             } else {
                 // all are considered incorrect
-                licIdGroups[1] = new uint256[](reportsLen);
+                licIdGroups[1] = new uint128[](reportsLen);
                 for (uint256 j; j < reportsLen; j++) {
                     report = reports[i][j];
                     licIdGroups[1][incorrectCount++] = report.licenseId;

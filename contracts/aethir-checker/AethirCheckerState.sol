@@ -24,7 +24,7 @@ contract AethirCheckerState {
 
     struct ReportMinified {
         string jobId;           // jobId (string)
-        uint256 licenseId;      // licenseId (uint256)
+        uint128 licenseId;      // licenseId (uint128)
         bytes32 containerHash;  // keccak hash of container data
     }
 
